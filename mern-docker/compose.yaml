@@ -1,0 +1,168 @@
+# specify the version of docker-compose
+version: "3.8"
+
+# define the services/containers to be run
+services:
+  # define the frontend service
+  # we can use any name for the service. A standard naming convention is to use "web" for the frontend
+  web:
+    # we use depends_on to specify that service depends on another service
+    # in this case, we specify that the web depends on the api service
+    # this means that the api service will be started before the web service
+    # 在 web service 起來之前要先啟動 api service
+    depends_on:
+      - api
+
+    # specify the build context for the web service
+    # this is the directory where the Dockerfile for the web service is located
+    # 告訴 Docker Compose web service 的 Dockerfile 在哪個目錄
+    build: ./frontend
+
+    # specify the ports to expose for the web service
+    # the first number is the port on the host machine
+    # the second number is the port inside the container
+    # mapping 本地機器的 port 到這個 service 的 port
+    ports:
+      - 5173:5173
+
+    # specify the environment variables for the web service
+    # these environment variables will be available inside the container
+    environment:
+      VITE_API_URL: http://localhost:8000
+
+    # this is for docker compose watch mode
+    # anything mentioned under develop will be watched for changes by docker compose watch and it will perform the action mentioned
+    # 根据 Docker Compose 的设计，develop 是一个专门用于开发环境的部分，允许定义一些在生产环境中不需要或不推荐的配置，例如文件监控和自动重建。将 watch 配置包含在 develop 中，可以确保这些功能只在开发环境中生效，而不会在生产环境中意外触发。
+    # 在 Docker Compose 中，watch 配置必须在 develop 部分内使用。也就是说，你不能直接在服务配置中写 watch，而必须先写 develop，再在 develop 中定义 watch。这是因为 watch 功能是 Docker Compose 为开发环境提供的一个特性，它被设计成在 develop 部分内使用，以确保其作用范围明确且限定在开发环境中。
+    develop:
+      # we specify the files to watch for changes
+      # 在 develop 部分下，watch 定义了一组文件监控规则。当监控的文件或目录发生变化时，Docker Compose 将执行相应的操作。
+      watch:
+        # it'll watch for changes in package.json and package-lock.json and rebuild the container if there are any changes
+        # 当 package.json 文件发生变化时，重新构建 Docker 镜像并重启服务。这通常用于当依赖项发生变化时需要重新安装依赖并重启应用。
+        - path: ./frontend/package.json
+          action: rebuild
+        # 当 package-lock.json 文件发生变化时，重新构建 Docker 镜像并重启服务。与监控 package.json 文件类似，这通常用于确保所有依赖项的一致性。
+        - path: ./frontend/package-lock.json
+          action: rebuild
+        # 当 ./frontend 目录下的文件发生变化时，同步这些变化到容器内的 /app 目录。这对于支持热重载（hot reload）的开发框架非常有用，可以立即看到代码修改的效果而不需要重启整个容器。
+        # it'll watch for changes in the frontend directory and sync the changes with the container real time
+        - path: ./frontend
+          target: /app
+          action: sync
+
+  # define the api service/container
+  api:
+    # api service depends on the db service so the db service will be started before the api service
+    depends_on:
+      - db
+
+    # specify the build context for the api service
+    build: ./backend
+
+    # specify the ports to expose for the api service
+    # the first number is the port on the host machine
+    # the second number is the port inside the container
+    ports:
+      - 8000:8000
+
+    # specify environment variables for the api service
+    # for demo purposes, we're using a local mongodb instance
+    environment:
+      DB_URL: mongodb://db/anime
+
+    # establish docker compose watch mode for the api service
+    develop:
+      # specify the files to watch for changes
+      watch:
+        # it'll watch for changes in package.json and package-lock.json and rebuild the container and image if there are any changes
+        - path: ./backend/package.json
+          action: rebuild
+        - path: ./backend/package-lock.json
+          action: rebuild
+
+        # it'll watch for changes in the backend directory and sync the changes with the container real time
+        - path: ./backend
+          target: /app
+          action: sync
+
+  # define the db service
+  db:
+    # specify the image to use for the db service from docker hub. If we have a custom image, we can specify that in this format
+    # In the above two services, we're using the build context to build the image for the service from the Dockerfile so we specify the image as "build: ./frontend" or "build: ./backend".
+    # but for the db service, we're using the image from docker hub so we specify the image as "image: mongo:latest"
+    # you can find the image name and tag for mongodb from docker hub here: https://hub.docker.com/_/mongo
+    # 我們前面 web 和 api services 是用 build context ， build: ./frontend 和 build: ./ 是因為 backend 我們分別要用 ./frontend 和 build: ./ 下的 Dockerfile 來 build image ，但 db service 的 image 我們想要直接拿 docker hub 的 image 來用，所以用 image 指令告訴 docker 要去 docker hub 拿哪個 image 下來用
+    # image: mongo:latest 表示去 docker hub 找到 image name 是 mongo, tag 是 latest 的 image 然後拉下來用。
+    image: mongo:latest
+
+    # specify the ports to expose for the db service
+    # generally, we do this in api service using mongodb atlas. But for demo purposes, we're using a local mongodb instance
+    # usually, mongodb runs on port 27017. So we're exposing the port 27017 on the host machine and mapping it to the port 27017 inside the container
+    # 上面說的 mongodb atlas 是一個託管的 MongoDB 雲服務，和 MongoDB 不同， MongoDB 指的是數據庫軟體本身
+    ports:
+      - 27017:27017
+
+    # specify the volumes to mount for the db service
+    # we're mounting the volume named "anime" inside the container at /data/db directory
+    # this is done so that the data inside the mongodb container is persisted even if the container is stopped
+    volumes:
+      - anime:/data/db
+
+# define the volumes to be used by the services
+volumes:
+  anime:
+# what is volumes
+# 是的，Docker 中有多種不同類型的卷（volumes），每種卷都有其特定的用途和特性。主要有以下幾種：
+
+# Host Volumes（主機卷）：
+# 這種卷直接將主機文件系統上的一個特定目錄或文件掛載到容器內部。這在開發和測試環境中特別有用，因為它允許您在容器外部更改文件，這些更改會立即反映在容器內部。
+# 配置示例：
+# services:
+#   web:
+#     image: nginx:latest
+#     volumes:
+#       - ./host_path:/container_path
+
+# Named Volumes（命名卷）：
+# 這是由 Docker 管理的卷，您只需給它們指定一個名稱。這種卷對於數據持久性非常有用，因為 Docker 會自動管理卷的存儲位置。
+# 配置示例：
+# services:
+#   web:
+#     image: nginx:latest
+#     volumes:
+#       - webdata:/usr/share/nginx/html
+# volumes:
+#   webdata:
+
+# Anonymous Volumes（匿名卷）：
+# 這種卷類似於命名卷，但它們沒有指定的名稱，由 Docker 自動生成一個唯一的名稱。這種卷常用於臨時數據存儲，或在短期運行的容器中使用。
+# 配置示例：
+# services:
+#   web:
+#     image: nginx:latest
+#     volumes:
+#       - /usr/share/nginx/html
+
+# Bind Mounts（綁定掛載）：
+# 綁定掛載類似於主機卷，允許您將主機上的一個特定文件或目錄綁定到容器內部。不同之處在於，綁定掛載允許您指定更細粒度的設置，例如只讀權限。
+# 配置示例：
+# services:
+#   web:
+#     image: nginx:latest
+#     volumes:
+#       - type: bind
+#         source: ./host_path
+#         target: /container_path
+#         read_only: true
+
+# tmpfs Mounts（臨時文件系統掛載）：
+# 這種掛載將數據存儲在主機的內存中，而不是持久存儲在磁盤上。這在需要高性能且不需要持久存儲的情況下非常有用。
+# 配置示例：
+# services:
+#   web:
+#     image: nginx:latest
+#     volumes:
+#       - type: tmpfs
+#         target: /container_path
+# 每種卷都有其特定的使用情境和優缺點。根據您的應用需求，可以選擇合適的卷類型來確保數據的持久性、性能和管理便利性。

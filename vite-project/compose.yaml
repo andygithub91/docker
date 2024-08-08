@@ -1,0 +1,9 @@
+services: # 這是 Docker Compose 文件的主要部分，用於定義服務（容器）。
+  web: # 服務名稱
+    build: # 建構相關設定
+      context: . # 使用當前目錄作為建構上下文。上下文（context）在 Docker 中是指 Docker 引擎在建構映像時可以訪問的所有文件和目錄。在 Docker Compose 文件中，上下文指定了 Docker 應該在哪個目錄中查找 Dockerfile 和其他相關文件。
+    ports:
+      - 5173:5173 # 將宿主機的 5173 端口映射到容器內的 5173 端口
+    volumes:
+      - .:/app # 將宿主機當前目錄掛載到容器內的 /app 目錄
+      - /app/node_modules # 確保容器內的 /app/node_modules 目錄保持獨立，避免宿主機的 node_modules 干擾

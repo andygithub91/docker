@@ -1,0 +1,69 @@
+# 指定 compose 的 yaml 語法的版本
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 3000:3000
+    develop:
+      watch:
+        - path: ./package.json
+          action: rebuild
+        - path: ./next.config.js
+          action: rebuild
+        - path: ./package-lock.json
+          action: rebuild
+        # 剩下的檔案，也就是排除掉上勉的檔案可以用 "." 表示
+        - path: .
+          target: /app
+          action: sync
+    # define the environment variables
+    environment:
+      - DB_URL=mongodb://andy:test@db:27017/myapp?authSource=admin
+  
+  # run a local mongo instance
+  db:
+    image: mongo
+    ports:
+      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=andy
+      - MONGO_INITDB_ROOT_PASSWORD=test
+    volumes:
+      - tasked:/data/db
+
+volumes:
+  tasked:
+
+# trouble shooting
+# 不知道 db 的 connect string
+# mongodb://{username}:{password}@db:27017/{your_database_name}?authSource=admin
+# mongodb://andy:test@db:27017/your_database_name?authSource=admin
+
+# 我要怎麼知道我的 your_database_name
+# 較新版本的 MongoDB Docker 镜像不再包含 mongo shell。讓我們用另一種方法來檢查你的數據庫：
+
+# 首先，進入 MongoDB 容器的 bash shell：docker-compose exec db bash
+# 一旦你在容器內，使用 mongosh 命令（這是新的 MongoDB shell）連接到數據庫：mongosh -u andy -p test
+
+# 在 MongoDB shell 中，輸入以下命令來列出所有數據庫：show dbs
+# show dbs
+# admin   100.00 KiB
+# config   12.00 KiB
+# local    72.00 KiB
+
+# 目前你的 MongoDB 實例中有三個默認的系統數據庫：
+# admin
+# config
+# local
+
+
+# 看起來你還沒有創建或使用任何自定義的數據庫。
+# 這種情況很常見，特別是在新設置的 MongoDB 實例中。
+# 你可以在你的 Docker Compose 文件中指定一個新的數據庫名稱，例如 myapp 或者任何你認為合適的名稱。
+# 我們使用 myapp 作為數據庫名稱。當你的應用首次連接並嘗試寫入數據時，MongoDB 將自動創建這個數據庫。
+#   environment:
+#     - DB_URL=mongodb://andy:test@db:27017/myapp?authSource=admin
